@@ -6,7 +6,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 
-public class FxScraping {
+public class FxScraping implements AutoCloseable {
 
     private final WebDriver driver;
 
@@ -34,5 +34,12 @@ public class FxScraping {
         fxScraping.driver.get("https://www.wp.pl");
 
 
+    }
+
+
+
+    @Override
+    public void close() throws Exception {
+        driver.quit();
     }
 }
