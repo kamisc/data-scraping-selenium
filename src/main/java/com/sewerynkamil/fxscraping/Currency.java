@@ -1,10 +1,10 @@
 package com.sewerynkamil.fxscraping;
 
 public enum Currency {
-    GBP("British Pound", "GBP"),
-    EUR("Euro", "EUR"),
-    JPY("Japanese Yen", "JPY"),
-    CAD("Canadian Dollar", "CAD");
+    GBP("GREAT BRITISH POUND", "GBP"),
+    EUR("EURO", "EUR"),
+    JPY("JAPANESE YEN", "JPY"),
+    CAD("CANADIAN DOLLAR", "CAD");
 
     private final String currencyName;
     private final String currencySymbol;
@@ -23,6 +23,6 @@ public enum Currency {
     }
 
     public String getLabel() {
-        return String.format("%s (%s)", currencyName, currencySymbol);
+        return String.format("%s - %s", currencyName, currencySymbol);
     }
 }
