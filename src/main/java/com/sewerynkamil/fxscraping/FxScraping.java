@@ -9,16 +9,19 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
 
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class FxScraping implements AutoCloseable {
 
     private final WebDriver driver;
+    private boolean clicked = false;
 
     public FxScraping(String browser) {
         driver = switch (browser) {
@@ -38,35 +41,64 @@ public class FxScraping implements AutoCloseable {
         };
     }
 
-    public static void main(String[] args) {
-        FxScraping fxScraping = new FxScraping("firefox");
+    public static void main(String[] args) throws Exception {
+        Set<Currency> ratesFrom = new HashSet<>();
+        ratesFrom.add(Currency.EUR);
+        ratesFrom.add(Currency.JPY);
+        ratesFrom.add(Currency.CAD);
 
-        YearMonth ym = YearMonth.of(2022, 4);
-
-        LocalDate fxDate = ym.atDay(14);
         Currency rateTo = Currency.GBP;
-        Currency rateFrom = Currency.EUR;
 
-        System.out.println("Converted currency rate: " + fxScraping.convertCurrency(fxDate, rateFrom, rateTo));
-    }
+        YearMonth ym = YearMonth.of(Integer.parseInt(args[0]), Integer.parseInt(args[1]));
+        int lastDayOfMonth = ym.atEndOfMonth().getDayOfMonth();
+        Map<LocalDate, Map<Currency, Double>> rates = new HashMap<>();
 
-    private double convertCurrency(LocalDate fxDate, Currency fromCurrency, Currency toCurrency) {
-        driver.get("https://www.mastercard.us/en-us/personal/get-support/convert-currency.html");
-        driver.manage().window().setSize(new Dimension(800, 900));
-
-        try {
-            Thread.sleep(3000);
-            WebElement buttonPrivacyAccept = driver.findElement(By.id("onetrust-accept-btn-handler"));
-            buttonPrivacyAccept.click();
-        } catch (NoSuchElementException | InterruptedException e) {
+        try (FxScraping fxScraping = new FxScraping("firefox")) {
+            for (int day = 1; day <= lastDayOfMonth; ++day) {
+                LocalDate fxDate = ym.atDay(day);
+                HashMap<Currency, Double> ratesForDay = new HashMap<>();
+                for (Currency rateFrom : ratesFrom) {
+                    int retries = 3;
+                    while (retries > 0) {
+                        try {
+                            double rate = fxScraping.convertCurrency(fxDate, rateFrom, rateTo);
+                            System.out.printf("Rate from %s to %s on %d/%d/%d = %f%n", rateFrom, rateTo, day, ym.getMonthValue(), ym.getYear(), rate);
+                            ratesForDay.put(rateFrom, rate);
+                            retries = 0;
+                        } catch (NoSuchElementException e) {
+                            if (--retries <= 0) {
+                                throw new IllegalStateException("Exceeded number of retries (" + e.getMessage() + ")");
+                            }
+                        }
+                    }
+                    rates.put(fxDate, ratesForDay);
+                }
+            }
+        }
+        try (FileOutputStream fos = new FileOutputStream("datasink/rates-" + ym + ".ser")) {
+            ObjectOutputStream oos = new ObjectOutputStream(fos);
+            oos.writeObject(rates);
+        } catch (IOException e) {
             e.printStackTrace();
         }
+    }
 
-        driver.findElement(By.id("txtTAmt")).clear();
-        driver.findElement(By.id("txtTAmt")).sendKeys("1");
+    private double convertCurrency(LocalDate fxDate, Currency fromCurrency, Currency toCurrency) throws InterruptedException {
+        driver.get("https://www.mastercard.us/en-us/personal/get-support/convert-currency.html");
 
-        driver.findElement(By.id("BankFee")).clear();
-        driver.findElement(By.id("BankFee")).sendKeys("0.75");
+        System.out.println("FROM_CURRENCY: " + fromCurrency);
+        System.out.println("TO CURRENCY: " + toCurrency);
+        if (!clicked) {
+            try {
+                Thread.sleep(5000);
+                WebElement buttonPrivacyAccept = driver.findElement(By.id("onetrust-accept-btn-handler"));
+                buttonPrivacyAccept.click();
+                Thread.sleep(5000);
+                clicked = true;
+            } catch (NoSuchElementException e) {
+                e.printStackTrace();
+            }
+        }
 
         driver.findElement(By.id("tCurrency")).click();
         driver.findElement(By.linkText(fromCurrency.getLabel())).click();
@@ -74,13 +106,18 @@ public class FxScraping implements AutoCloseable {
         driver.findElement(By.id("cardCurrency")).click();
         driver.findElement(By.linkText(toCurrency.getLabel())).click();
 
+        driver.findElement(By.id("BankFee")).clear();
+        driver.findElement(By.id("BankFee")).sendKeys("0.75");
+
+        driver.findElement(By.id("txtTAmt")).clear();
+        driver.findElement(By.id("txtTAmt")).sendKeys("1");
+
         driver.findElement(By.id("getDate")).click();
         driver.findElement(By.className("ui-datepicker-year")).sendKeys(String.valueOf(fxDate.getYear()));
         driver.findElement(By.className("ui-datepicker-month")).sendKeys(fxDate.getMonth().toString());
         driver.findElement(By.linkText(String.valueOf(fxDate.getDayOfMonth()))).click();
 
         String rateString = driver.findElement(By.className("one-currency-amount")).getText().toUpperCase().split(" = ")[1];
-        System.out.println("RATE: " + rateString);
         Matcher rateMatcher = Pattern.compile("^(\\d\\.\\d+)" + " " + toCurrency.getCurrencyName() + "$").matcher(rateString);
 
         if (rateMatcher.matches()) {
