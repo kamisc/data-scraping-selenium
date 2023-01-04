@@ -1,16 +1,21 @@
 package com.sewerynkamil.weather;
 
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.time.Duration;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,7 +28,6 @@ public class WeatherScraping implements AutoCloseable {
     Pattern temperatureExtractor = Pattern.compile("([+-]?\\d+(\\.\\d+)?)\n°C");
     Pattern precipitationExtractor = Pattern.compile("(\\d+(\\.\\d+)?)\nmm");
     Pattern pressureExtractor = Pattern.compile("(\\d+(\\.\\d+)?)\nhPa");
-
 
     public WeatherScraping(String browser) {
         driver = switch (browser) {
@@ -45,19 +49,40 @@ public class WeatherScraping implements AutoCloseable {
     }
 
     public static void main(String[] args) {
-        WeatherScraping scraper = new WeatherScraping("firefox");
         YearMonth ym = YearMonth.of(Integer.parseInt(args[0]), Integer.parseInt(args[1]));
-        LocalDate weatherDate = ym.atDay(14);
-        WeatherLocation location = WeatherLocation.valueOf("GB");
+        int lastDayOfMonth = ym.atEndOfMonth().getDayOfMonth();
+        Map<LocalDate, Map<WeatherLocation, WeatherData>> weather = new HashMap<>();
 
-        System.out.println(location.getWebsiteCode());
+        try (WeatherScraping weatherScraping = new WeatherScraping("firefox")) {
+            for (int day = 1; day <= lastDayOfMonth; ++day) {
+                LocalDate weatherDate = ym.atDay(day);
+                HashMap<WeatherLocation, WeatherData> weatherForDay = new HashMap<>();
 
-        for (WeatherLocation loc : WeatherLocation.values()) {
-            System.out.println(loc.name());
+                for (WeatherLocation location : WeatherLocation.values()) {
+                    int retries = 3;
+
+                    while (retries > 0) {
+                        try {
+                            WeatherData data = weatherScraping.getWeatherData(ym.atDay(day), location);
+                            System.out.printf("Weather in %s on %d/%d/%d = %s%n", location, day, ym.getMonthValue(), ym.getYear(), data);
+                            weatherForDay.put(location, data);
+                            retries = 0;
+                        } catch (org.openqa.selenium.NoSuchElementException e) {
+                            if (--retries <= 0) {
+                                throw new IllegalStateException("Exceeded number of retries (" + e.getMessage() + ")");
+                            }
+                        }
+                    }
+                }
+                weather.put(weatherDate, weatherForDay);
+            }
+            try (FileOutputStream fos = new FileOutputStream("datasink/weather-" + ym + ".ser")) {
+                ObjectOutputStream oos = new ObjectOutputStream(fos);
+                oos.writeObject(weather);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
-        scraper.getWeatherData(weatherDate, location);
-
     }
 
     public WeatherData getWeatherData(LocalDate atDay, WeatherLocation location) {
