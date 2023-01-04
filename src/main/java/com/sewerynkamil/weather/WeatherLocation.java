@@ -1,9 +1,9 @@
 package com.sewerynkamil.weather;
 
 public enum WeatherLocation {
-    IT("IT-FAWC", "TURIN"),
-    JP("JP-0H2L", "TOKYO"),
-    CA("CA-ZV5S", "MONTREAL"),
+    IT("16061", "TURIN"),
+    JP("47683", "TOKYO"),
+    CA("71612", "MONTREAL"),
     GB("EGLC0", "LONDON");
 
     private final String websiteCode;

@@ -67,7 +67,7 @@ public class WeatherScraping implements AutoCloseable {
                             System.out.printf("Weather in %s on %d/%d/%d = %s%n", location, day, ym.getMonthValue(), ym.getYear(), data);
                             weatherForDay.put(location, data);
                             retries = 0;
-                        } catch (org.openqa.selenium.NoSuchElementException e) {
+                        } catch (NoSuchElementException | InterruptedException e) {
                             if (--retries <= 0) {
                                 throw new IllegalStateException("Exceeded number of retries (" + e.getMessage() + ")");
                             }
@@ -85,7 +85,7 @@ public class WeatherScraping implements AutoCloseable {
         }
     }
 
-    public WeatherData getWeatherData(LocalDate atDay, WeatherLocation location) {
+    public WeatherData getWeatherData(LocalDate atDay, WeatherLocation location) throws InterruptedException {
         String url = String.format("https://meteostat.net/en/place/%1$s/%2$s?s=%3$s&t=%4$tF/%4$tF", location.name(), location.getCity(), location.getWebsiteCode(), atDay);
         driver.get(url);
 
@@ -96,6 +96,7 @@ public class WeatherScraping implements AutoCloseable {
         } catch (NoSuchElementException | InterruptedException e) {
             e.printStackTrace();
         }
+        Thread.sleep(2000);
 
         WebElement tempRow = driver.findElement(By.cssSelector(".col-6:nth-child(1) .card-title"));
         Matcher tempMatcher = temperatureExtractor.matcher(tempRow.getText());

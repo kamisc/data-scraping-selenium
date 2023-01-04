@@ -1,7 +1,6 @@
 package com.sewerynkamil.fxscraping;
 
 import org.openqa.selenium.By;
-import org.openqa.selenium.Dimension;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -21,7 +20,6 @@ import java.util.regex.Pattern;
 public class FxScraping implements AutoCloseable {
 
     private final WebDriver driver;
-    private boolean clicked = false;
 
     public FxScraping(String browser) {
         driver = switch (browser) {
@@ -53,7 +51,7 @@ public class FxScraping implements AutoCloseable {
         int lastDayOfMonth = ym.atEndOfMonth().getDayOfMonth();
         Map<LocalDate, Map<Currency, Double>> rates = new HashMap<>();
 
-        try (FxScraping fxScraping = new FxScraping("firefox")) {
+        try (FxScraping fxScraping = new FxScraping("chrome")) {
             for (int day = 1; day <= lastDayOfMonth; ++day) {
                 LocalDate fxDate = ym.atDay(day);
                 HashMap<Currency, Double> ratesForDay = new HashMap<>();
@@ -86,18 +84,12 @@ public class FxScraping implements AutoCloseable {
     private double convertCurrency(LocalDate fxDate, Currency fromCurrency, Currency toCurrency) throws InterruptedException {
         driver.get("https://www.mastercard.us/en-us/personal/get-support/convert-currency.html");
 
-        System.out.println("FROM_CURRENCY: " + fromCurrency);
-        System.out.println("TO CURRENCY: " + toCurrency);
-        if (!clicked) {
-            try {
-                Thread.sleep(5000);
-                WebElement buttonPrivacyAccept = driver.findElement(By.id("onetrust-accept-btn-handler"));
-                buttonPrivacyAccept.click();
-                Thread.sleep(5000);
-                clicked = true;
-            } catch (NoSuchElementException e) {
-                e.printStackTrace();
-            }
+        try {
+            Thread.sleep(750);
+            WebElement buttonPrivacyAccept = driver.findElement(By.id("onetrust-accept-btn-handler"));
+            buttonPrivacyAccept.click();
+        } catch (NoSuchElementException e) {
+            e.printStackTrace();
         }
 
         driver.findElement(By.id("tCurrency")).click();
@@ -128,7 +120,7 @@ public class FxScraping implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         driver.quit();
     }
 }
