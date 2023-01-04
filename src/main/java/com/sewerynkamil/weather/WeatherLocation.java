@@ -4,7 +4,7 @@ public enum WeatherLocation {
     IT("IT-FAWC", "TURIN"),
     JP("JP-0H2L", "TOKYO"),
     CA("CA-ZV5S", "MONTREAL"),
-    GB("GB-QK9E", "LONDON");
+    GB("EGLC0", "LONDON");
 
     private final String websiteCode;
     private final String city;
